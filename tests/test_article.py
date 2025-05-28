@@ -11,15 +11,14 @@ def setup_db():
     Cleans up database data before each test.
     Ensures the schema exists before attempting to delete data.
     """
-    setup_schema() # Ensure tables are created before we try to delete from them
+    setup_schema()
 
     with get_connection() as conn:
-        # Delete from child tables first to respect foreign key constraints
         conn.execute("DELETE FROM articles")
         conn.execute("DELETE FROM authors")
         conn.execute("DELETE FROM magazines")
         conn.commit()
-    yield # Let the test run, then this fixture's setup completes
+    yield
 
 @pytest.fixture
 def sample_article():
@@ -51,7 +50,6 @@ def test_title_validation():
     author_for_validation = Author("Validator Author").save()
     magazine_for_validation = Magazine("Validator Mag", "Validation").save()
 
-    # FIX: Change '1 and 255 characters' to '1-255 characters' to match the actual ValueError message
     with pytest.raises(ValueError, match="Title must be between 1-255 characters"):
         Article("", author_for_validation.id, magazine_for_validation.id)
     with pytest.raises(ValueError, match="Title must be between 1-255 characters"):

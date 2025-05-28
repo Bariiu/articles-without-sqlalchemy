@@ -3,7 +3,7 @@ from lib.models.author import Author
 from lib.models.magazine import Magazine
 from lib.models.article import Article
 from lib.db.connection import get_connection
-from lib.db.schema import setup_schema # Import setup_schema
+from lib.db.schema import setup_schema 
 
 @pytest.fixture(autouse=True)
 def setup_db():
@@ -11,7 +11,7 @@ def setup_db():
     Cleans up database data before each test.
     Ensures the schema exists before attempting to delete data.
     """
-    setup_schema() # Ensure tables are created before we try to delete from them
+    setup_schema()
 
     with get_connection() as conn:
         conn.execute("DELETE FROM articles")
@@ -66,7 +66,6 @@ def test_articles_relationship(sample_author):
     assert len(articles) == 2
     assert any(a.title == "It" for a in articles)
     assert any(a.title == "The Dark Tower" for a in articles)
-    # Ensure they are Article objects
     assert all(isinstance(a, Article) for a in articles)
 
 def test_magazines_relationship(sample_author):
@@ -79,7 +78,6 @@ def test_magazines_relationship(sample_author):
     assert len(magazines) == 2
     assert any(m.name == "Horror Lit" for m in magazines)
     assert any(m.name == "Fantasy Reads" for m in magazines)
-    # Ensure they are Magazine objects
     assert all(isinstance(m, Magazine) for m in magazines)
 
 def test_add_article(sample_author):
@@ -93,14 +91,13 @@ def test_add_article(sample_author):
 def test_topic_areas(sample_author):
     magazine1 = Magazine("Tech Today", "Technology").save()
     magazine2 = Magazine("Nature's Wonders", "Science").save()
-    magazine3 = Magazine("Digital Life", "Technology").save() # Same category
+    magazine3 = Magazine("Digital Life", "Technology").save()
     sample_author.add_article(magazine1, "AI Advances")
     sample_author.add_article(magazine2, "Exploring the Amazon")
     sample_author.add_article(magazine3, "Cybersecurity Basics")
     
     topic_areas = sample_author.topic_areas()
     assert sorted(topic_areas) == sorted(["Technology", "Science"])
-    # Ensure no duplicates and correct types
     assert len(topic_areas) == len(set(topic_areas))
     assert all(isinstance(t, str) for t in topic_areas)
 
@@ -110,7 +107,6 @@ def test_most_published():
     author2 = Author("Author B").save()
     magazine = Magazine("Test Mag", "Test Cat").save()
 
-    # Author A has more articles
     author1.add_article(magazine, "Article 1 by A")
     author1.add_article(magazine, "Article 2 by A")
     author1.add_article(magazine, "Article 3 by A")
@@ -121,7 +117,6 @@ def test_most_published():
     assert most_published_author is not None
     assert most_published_author.name == "Author A"
 
-    # Test with no articles
     Author("Author C").save()
     with get_connection() as conn:
         conn.execute("DELETE FROM articles")

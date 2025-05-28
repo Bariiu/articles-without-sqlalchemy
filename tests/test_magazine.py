@@ -3,7 +3,7 @@ from lib.models.author import Author
 from lib.models.magazine import Magazine
 from lib.models.article import Article
 from lib.db.connection import get_connection
-from lib.db.schema import setup_schema # Import setup_schema
+from lib.db.schema import setup_schema
 
 @pytest.fixture(autouse=True)
 def setup_db():
@@ -11,7 +11,7 @@ def setup_db():
     Cleans up database data before each test.
     Ensures the schema exists before attempting to delete data.
     """
-    setup_schema() # Ensure tables are created before we try to delete from them
+    setup_schema()
 
     with get_connection() as conn:
         conn.execute("DELETE FROM articles")
@@ -96,16 +96,13 @@ def test_contributing_authors():
     author2 = Author("Bob").save()
     author3 = Author("Charlie").save()
 
-    # Alice has 3 articles (should be a contributing author)
     Article("AI in Healthcare", author1.id, magazine.id).save()
     Article("Quantum Computing Basics", author1.id, magazine.id).save()
     Article("Future of Robotics", author1.id, magazine.id).save()
 
-    # Bob has 2 articles (should NOT be a contributing author)
     Article("Web Development Trends", author2.id, magazine.id).save()
     Article("Mobile App Design", author2.id, magazine.id).save()
 
-    # Charlie has 1 article (should NOT be a contributing author)
     Article("Cloud Security", author3.id, magazine.id).save()
 
     contributing_authors = magazine.contributing_authors()
@@ -116,7 +113,7 @@ def test_contributing_authors():
 def test_article_counts():
     magazine1 = Magazine("Science Monthly", "Science").save()
     magazine2 = Magazine("Art Daily", "Art").save()
-    magazine3 = Magazine("No Articles Yet", "Empty").save() # Magazine with no articles
+    magazine3 = Magazine("No Articles Yet", "Empty").save()
     author = Author("Test Author").save()
 
     Article("Physics Explained", author.id, magazine1.id).save()
@@ -126,27 +123,24 @@ def test_article_counts():
     counts = Magazine.article_counts()
     assert counts.get("Science Monthly") == 2
     assert counts.get("Art Daily") == 1
-    assert counts.get("No Articles Yet") == 0 # Ensure magazines with no articles are included and show 0
+    assert counts.get("No Articles Yet") == 0
 
 def test_find_with_multiple_authors():
-    magazine1 = Magazine("Magazine A", "Category A").save() # Will have 2 authors
-    magazine2 = Magazine("Magazine B", "Category B").save() # Will have 3 authors
-    magazine3 = Magazine("Magazine C", "Category C").save() # Will have only one author
+    magazine1 = Magazine("Magazine A", "Category A").save()
+    magazine2 = Magazine("Magazine B", "Category B").save()
+    magazine3 = Magazine("Magazine C", "Category C").save()
 
     author1 = Author("Author 1").save()
     author2 = Author("Author 2").save()
     author3 = Author("Author 3").save()
 
-    # Magazine A: 2 authors
     Article("Article A1", author1.id, magazine1.id).save()
     Article("Article A2", author2.id, magazine1.id).save()
 
-    # Magazine B: 3 authors
     Article("Article B1", author1.id, magazine2.id).save()
     Article("Article B2", author2.id, magazine2.id).save()
     Article("Article B3", author3.id, magazine2.id).save()
 
-    # Magazine C: 1 author
     Article("Article C1", author1.id, magazine3.id).save()
     Article("Article C2", author1.id, magazine3.id).save()
 

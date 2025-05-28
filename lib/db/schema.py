@@ -8,7 +8,7 @@ def setup_schema():
     with get_connection() as conn:
         cursor = conn.cursor()
 
-        # Create authors table
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS authors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,7 +16,6 @@ def setup_schema():
             )
         ''')
 
-        # Create magazines table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS magazines (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,7 +24,6 @@ def setup_schema():
             )
         ''')
 
-        # Create articles table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS articles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +36,6 @@ def setup_schema():
         ''')
         
         conn.commit()
-        # print("Database schema set up successfully!") # Comment out for cleaner test output
 
 if __name__ == '__main__':
     setup_schema()

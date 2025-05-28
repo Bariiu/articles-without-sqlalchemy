@@ -2,82 +2,158 @@ import pytest
 from lib.models.author import Author
 from lib.models.magazine import Magazine
 from lib.models.article import Article
+from lib.db.connection import get_connection
+from lib.db.schema import setup_schema # Import setup_schema
 
 @pytest.fixture(autouse=True)
 def setup_db():
-    with Magazine.get_connection() as conn:
+    """
+    Cleans up database data before each test.
+    Ensures the schema exists before attempting to delete data.
+    """
+    setup_schema() # Ensure tables are created before we try to delete from them
+
+    with get_connection() as conn:
         conn.execute("DELETE FROM articles")
         conn.execute("DELETE FROM authors")
         conn.execute("DELETE FROM magazines")
         conn.commit()
+    yield
 
 @pytest.fixture
-def sample_data():
-    author1 = Author("J.K. Rowling").save()
-    author2 = Author("Stephen King").save()
-    magazine1 = Magazine("Fantasy Today", "Fantasy").save()
-    magazine2 = Magazine("Horror Monthly", "Horror").save()
+def sample_magazine():
+    return Magazine("National Geographic", "Nature").save()
+
+def test_magazine_creation(sample_magazine):
+    assert sample_magazine.id is not None
+    assert sample_magazine.name == "National Geographic"
+    assert sample_magazine.category == "Nature"
+
+def test_magazine_find_by_id(sample_magazine):
+    found = Magazine.find_by_id(sample_magazine.id)
+    assert found is not None
+    assert found.name == "National Geographic"
+    assert found.id == sample_magazine.id
+
+def test_magazine_name_validation():
+    with pytest.raises(ValueError, match="Name must be between 1-255 characters"):
+        Magazine("", "Category").save()
+    with pytest.raises(ValueError, match="Name must be between 1-255 characters"):
+        Magazine("A" * 256, "Category").save()
+
+def test_magazine_category_validation():
+    with pytest.raises(ValueError, match="Category must be between 1-255 characters"):
+        Magazine("Name", "").save()
+    with pytest.raises(ValueError, match="Category must be between 1-255 characters"):
+        Magazine("Name", "C" * 256).save()
+
+def test_magazine_save_update():
+    magazine = Magazine("Original Mag", "Original Cat").save()
+    magazine.name = "Updated Mag"
+    magazine.category = "Updated Cat"
+    updated = magazine.save()
+    found = Magazine.find_by_id(magazine.id)
+    assert found.name == "Updated Mag"
+    assert found.category == "Updated Cat"
+    assert updated.name == "Updated Mag"
+
+def test_articles_relationship(sample_magazine):
+    author = Author("Test Author").save()
+    article1 = Article("Ocean Depths", author.id, sample_magazine.id).save()
+    article2 = Article("Wildlife Photography", author.id, sample_magazine.id).save()
     
-    Article("Harry Potter", author1.id, magazine1.id).save()
-    Article("Fantasy Writing", author1.id, magazine1.id).save()
-    Article("The Shining", author2.id, magazine2.id).save()
-    Article("Horror 101", author2.id, magazine2.id).save()
-    
-    return {
-        "authors": [author1, author2],
-        "magazines": [magazine1, magazine2]
-    }
-
-def test_magazine_creation():
-    magazine = Magazine("Tech Weekly", "Technology").save()
-    assert magazine.id is not None
-    assert magazine.name == "Tech Weekly"
-    assert magazine.category == "Technology"
-
-def test_find_by_id(sample_data):
-    magazine = Magazine.find_by_id(sample_data["magazines"][0].id)
-    assert magazine.name == "Fantasy Today"
-
-def test_articles_relationship(sample_data):
-    magazine = sample_data["magazines"][0]
-    articles = magazine.articles()
+    articles = sample_magazine.articles()
     assert len(articles) == 2
-    assert {a.title for a in articles} == {"Harry Potter", "Fantasy Writing"}
+    assert any(a.title == "Ocean Depths" for a in articles)
+    assert any(a.title == "Wildlife Photography" for a in articles)
+    assert all(isinstance(a, Article) for a in articles)
 
-def test_contributors(sample_data):
-    magazine = sample_data["magazines"][0]
-    contributors = magazine.contributors()
-    assert len(contributors) == 1
-    assert contributors[0].name == "J.K. Rowling"
 
-def test_article_titles(sample_data):
-    magazine = sample_data["magazines"][1]
-    titles = magazine.article_titles()
-    assert titles == ["The Shining", "Horror 101"]
-
-def test_contributing_authors(sample_data):
-    magazine = sample_data["magazines"][1]
-    author = sample_data["authors"][1]
-    Article("Another Horror", author.id, magazine.id).save()
-    Article("More Horror", author.id, magazine.id).save()
+def test_contributors(sample_magazine):
+    author1 = Author("Photographer A").save()
+    author2 = Author("Writer B").save()
+    Article("Nature's Beauty", author1.id, sample_magazine.id).save()
+    Article("Travel Logs", author2.id, sample_magazine.id).save()
     
-    contributors = magazine.contributing_authors()
-    assert len(contributors) == 1
-    assert contributors[0].name == "Stephen King"
+    contributors = sample_magazine.contributors()
+    assert len(contributors) == 2
+    assert any(c.name == "Photographer A" for c in contributors)
+    assert any(c.name == "Writer B" for c in contributors)
+    assert all(isinstance(c, Author) for c in contributors)
 
-def test_article_counts(sample_data):
+def test_article_titles(sample_magazine):
+    author = Author("Some Author").save()
+    Article("Title One", author.id, sample_magazine.id).save()
+    Article("Title Two", author.id, sample_magazine.id).save()
+    
+    titles = sample_magazine.article_titles()
+    assert sorted(titles) == sorted(["Title One", "Title Two"])
+    assert all(isinstance(t, str) for t in titles)
+
+def test_contributing_authors():
+    magazine = Magazine("Tech Innovators", "Tech").save()
+    author1 = Author("Alice").save()
+    author2 = Author("Bob").save()
+    author3 = Author("Charlie").save()
+
+    # Alice has 3 articles (should be a contributing author)
+    Article("AI in Healthcare", author1.id, magazine.id).save()
+    Article("Quantum Computing Basics", author1.id, magazine.id).save()
+    Article("Future of Robotics", author1.id, magazine.id).save()
+
+    # Bob has 2 articles (should NOT be a contributing author)
+    Article("Web Development Trends", author2.id, magazine.id).save()
+    Article("Mobile App Design", author2.id, magazine.id).save()
+
+    # Charlie has 1 article (should NOT be a contributing author)
+    Article("Cloud Security", author3.id, magazine.id).save()
+
+    contributing_authors = magazine.contributing_authors()
+    assert len(contributing_authors) == 1
+    assert contributing_authors[0].name == "Alice"
+    assert isinstance(contributing_authors[0], Author)
+
+def test_article_counts():
+    magazine1 = Magazine("Science Monthly", "Science").save()
+    magazine2 = Magazine("Art Daily", "Art").save()
+    magazine3 = Magazine("No Articles Yet", "Empty").save() # Magazine with no articles
+    author = Author("Test Author").save()
+
+    Article("Physics Explained", author.id, magazine1.id).save()
+    Article("Chemistry Basics", author.id, magazine1.id).save()
+    Article("Art History 101", author.id, magazine2.id).save()
+
     counts = Magazine.article_counts()
-    assert counts["Fantasy Today"] == 2
-    assert counts["Horror Monthly"] == 2
+    assert counts.get("Science Monthly") == 2
+    assert counts.get("Art Daily") == 1
+    assert counts.get("No Articles Yet") == 0 # Ensure magazines with no articles are included and show 0
 
 def test_find_with_multiple_authors():
-    author1 = Author("Author A").save()
-    author2 = Author("Author B").save()
-    magazine = Magazine("Multi Author Mag", "General").save()
-    
-    Article("Article 1", author1.id, magazine.id).save()
-    Article("Article 2", author2.id, magazine.id).save()
-    
-    results = Magazine.find_with_multiple_authors()
-    assert len(results) == 1
-    assert results[0].name == "Multi Author Mag"
+    magazine1 = Magazine("Magazine A", "Category A").save() # Will have 2 authors
+    magazine2 = Magazine("Magazine B", "Category B").save() # Will have 3 authors
+    magazine3 = Magazine("Magazine C", "Category C").save() # Will have only one author
+
+    author1 = Author("Author 1").save()
+    author2 = Author("Author 2").save()
+    author3 = Author("Author 3").save()
+
+    # Magazine A: 2 authors
+    Article("Article A1", author1.id, magazine1.id).save()
+    Article("Article A2", author2.id, magazine1.id).save()
+
+    # Magazine B: 3 authors
+    Article("Article B1", author1.id, magazine2.id).save()
+    Article("Article B2", author2.id, magazine2.id).save()
+    Article("Article B3", author3.id, magazine2.id).save()
+
+    # Magazine C: 1 author
+    Article("Article C1", author1.id, magazine3.id).save()
+    Article("Article C2", author1.id, magazine3.id).save()
+
+    magazines = Magazine.find_with_multiple_authors()
+    assert len(magazines) == 2
+    magazine_names = {m.name for m in magazines}
+    assert "Magazine A" in magazine_names
+    assert "Magazine B" in magazine_names
+    assert "Magazine C" not in magazine_names
+    assert all(isinstance(m, Magazine) for m in magazines)
